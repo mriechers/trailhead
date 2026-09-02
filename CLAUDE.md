@@ -31,3 +31,17 @@ sits on `--surface-2`. Re-check both themes before changing any neutral.
 2. Add it to the list in `render()` — order on the page is order in that list.
 3. Style it in `templates/page.css`.
 4. Rebuild against a real repo and check light, dark, and 390px before committing.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on `mriechers/trailhead`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
