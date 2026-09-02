@@ -1,0 +1,27 @@
+# This repo is public. Nothing project-specific belongs in it.
+#
+# Trailhead reads a project's map and writes a page about it. Both ends of that
+# — the collected facts and the rendered page — describe someone's private work,
+# so neither is ever committed here. Rendered output lives outside the repo
+# entirely, under ~/.local/state/trailhead/.
+
+# Collected facts and rendered pages, if anyone points --out back into the repo
+*.state.json
+*.judgment.json
+out/
+state/
+
+# A project's own judgment file belongs in that project, never here
+.trailhead/
+
+# Scratch fixtures captured from real repos while developing
+fixtures/real/
+scratch/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# macOS
+.DS_Store

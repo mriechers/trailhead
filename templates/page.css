@@ -1,0 +1,656 @@
+/* Trailhead — a wayfinder map's "where are we" page.
+ *
+ * The visual language is trail blazing: the painted marks that tell you which
+ * way to go when the path itself is unclear. Exactly one saturated blaze
+ * carries the single next action. Everything else is quiet, because a page you
+ * check while disoriented should have one loud thing on it, not six.
+ *
+ * Reading order is priority order, top to bottom:
+ *   what's next → where we left off → where we're going → what this is
+ *
+ * This file is the whole design. render.py emits semantic HTML and never
+ * inlines a style, so this is the only file a design pass needs to touch.
+ */
+
+:root {
+  --ground:      #EDEFEC;
+  --surface:     #FFFFFF;
+  --surface-2:   #E3E7E2;
+  --ink:         #161C18;
+  --ink-2:       #4A554D;
+  --ink-3:       #5D6961;  /* 4.59:1 on surface-2, the worst ground it sits on */
+  --rule:        #CDD5CD;
+  --rule-strong: #AEB9AE;
+  --blaze:       #E0A008;
+  --blaze-ink:   #16130A;
+  --done:        #276E4C;
+  --hitl:        #6F5F89;
+  --alert:       #AC4028;
+  --lift:        0 1px 0 rgba(22, 28, 24, .04), 0 8px 24px -16px rgba(22, 28, 24, .45);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ground:      #131714;
+    --surface:     #1B211C;
+    --surface-2:   #242B25;
+    --ink:         #E9EEEA;
+    --ink-2:       #A4AFA7;
+    --ink-3:       #8C978E;  /* 4.79:1 on surface-2 */
+    --rule:        #2E362F;
+    --rule-strong: #46503F;
+    --blaze:       #F2BC2A;
+    --blaze-ink:   #16130A;
+    --done:        #56AE81;
+    --hitl:        #A796C1;
+    --alert:       #E4826A;
+    --lift:        0 1px 0 rgba(0, 0, 0, .25), 0 10px 28px -18px rgba(0, 0, 0, .9);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "Archivo", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 62rem;
+  margin: 0 auto;
+  padding: clamp(1.25rem, .5rem + 2.5vw, 2.75rem) clamp(1rem, .5rem + 2vw, 2rem) 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1.75rem, 1rem + 2vw, 2.75rem);
+}
+
+.mono,
+code.mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+code.mono {
+  font-size: .88em;
+  background: var(--surface-2);
+  padding: .08em .32em;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--rule-strong);
+  text-underline-offset: 3px;
+}
+
+a:hover { text-decoration-color: currentColor; }
+
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* ---------- masthead ----------------------------------------------------
+   The one uppercase wordmark on the page. Section headings deliberately do
+   not echo it — an eyebrow over everything is grammar, not hierarchy. */
+
+.masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .4rem 1rem;
+  padding-bottom: .75rem;
+  border-bottom: 2px solid var(--ink);
+}
+
+.masthead h1 {
+  margin: 0;
+  font-size: .94rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.masthead h1 .sep {
+  color: var(--ink-3);
+  margin: 0 .45em;
+  font-weight: 400;
+}
+
+.masthead .meta {
+  margin-left: auto;
+  font-size: .74rem;
+  color: var(--ink-2);
+  letter-spacing: .04em;
+}
+
+/* ---------- staleness banner ---------- */
+
+.stale-banner {
+  background: var(--surface);
+  border: 1px solid var(--alert);
+  padding: .8rem 1rem;
+  font-size: .87rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+
+.stale-banner strong { color: var(--alert); font-weight: 600; }
+
+/* ---------- the four answers ------------------------------------------
+   Not four equal cards. "What's next" is the answer you came for, so it
+   takes the blaze and the full width; the other three are orientation and
+   sit underneath, quieter and smaller. */
+
+.answers {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+}
+
+.answer {
+  background: var(--surface);
+  padding: 1rem 1.15rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  min-width: 0;
+}
+
+.answer .q {
+  font-size: .67rem;
+  font-weight: 800;
+  letter-spacing: .17em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.answer .a {
+  margin: 0;
+  font-family: "Newsreader", Georgia, "Times New Roman", serif;
+  font-size: 1.04rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+  max-width: 62ch;
+}
+
+.answer .a strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.answer.next {
+  background: var(--blaze);
+  color: var(--blaze-ink);
+  padding: 1.4rem 1.3rem 1.5rem;
+  gap: .65rem;
+}
+
+.answer.next .q {
+  color: inherit;
+  opacity: .78;  /* 5.44:1 on the blaze; .7 lands at 4.51 and this is small caps */
+}
+
+.answer.next .a {
+  color: inherit;
+  font-size: clamp(1.15rem, 1rem + .7vw, 1.5rem);
+  line-height: 1.36;
+  max-width: 48ch;
+  text-wrap: balance;
+}
+
+.answer.next .a strong { color: inherit; font-weight: 600; }
+.answer.next a { text-decoration-color: rgba(22, 19, 10, .45); }
+.answer.next code.mono { background: rgba(22, 19, 10, .13); }
+
+.orientation {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1px;
+  background: var(--rule);
+}
+
+.orientation .a { font-size: .97rem; }
+
+/* ---------- section shell ---------------------------------------------
+   Sentence case, real weight, a hairline rule. The uppercase label system
+   belongs to .q and .tag, which are labels; a section heading is a heading. */
+
+section {
+  display: flex;
+  flex-direction: column;
+  gap: .9rem;
+}
+
+h3.sec {
+  margin: 0;
+  font-size: .95rem;
+  font-weight: 600;
+  letter-spacing: -.005em;
+  color: var(--ink);
+  padding-bottom: .45rem;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+h3.sec .hint {
+  font-weight: 400;
+  font-size: .8rem;
+  color: var(--ink-2);
+}
+
+h4.sub-h {
+  margin: .5rem 0 0;
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* ---------- do this now -----------------------------------------------
+   The rank digit sits in a filled blaze square — the painted mark itself,
+   rather than a stripe down the side of a card. */
+
+.donow {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.act {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: .85rem 1rem .9rem;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: .4rem .85rem;
+  transition: border-color .12s ease-out;
+}
+
+.act:hover { border-color: var(--rule-strong); }
+
+.act .n {
+  align-self: start;
+  background: var(--blaze);
+  color: var(--blaze-ink);
+  font-size: .74rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: .38rem .42rem;
+  transform: translateY(.12rem);
+}
+
+.act .h {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.act .cost {
+  font-size: .71rem;
+  font-weight: 500;
+  letter-spacing: .04em;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.act .d {
+  grid-column: 2 / -1;
+  margin: 0;
+  font-size: .86rem;
+  color: var(--ink-2);
+  line-height: 1.5;
+  max-width: 70ch;
+}
+
+.act .cmd {
+  grid-column: 2 / -1;
+  display: block;
+  font-size: .76rem;
+  line-height: 1.7;
+  background: var(--surface-2);
+  color: var(--ink);
+  padding: .55rem .7rem;
+  margin-top: .15rem;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* ---------- route ------------------------------------------------------
+   Numbered because the steps genuinely are a sequence — step 5 cannot be
+   taken before step 4. The current step is the only one with weight. */
+
+.route {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: .4rem;
+}
+
+.route li {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--rule-strong);
+  padding: .65rem .75rem .7rem;
+  display: flex;
+  flex-direction: column;
+  gap: .28rem;
+  min-width: 0;
+}
+
+.route .n {
+  font-size: .68rem;
+  font-weight: 700;
+  color: var(--ink-3);
+  letter-spacing: .06em;
+}
+
+.route .what {
+  font-size: .83rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.route .state {
+  font-size: .72rem;
+  font-weight: 500;
+  margin-top: auto;
+  padding-top: .4rem;
+  color: var(--ink-3);
+}
+
+.route li.done { border-top-color: var(--done); }
+.route li.done .state { color: var(--done); }
+.route li.done .what { color: var(--ink-2); font-weight: 500; }
+
+.route li.here {
+  border-top-color: var(--blaze);
+  border-color: var(--ink);
+  box-shadow: var(--lift);
+}
+
+.route li.here .state { color: var(--ink); font-weight: 600; }
+.route li.here .what { font-weight: 700; }
+
+.route li.ahead { background: transparent; }
+.route li.ahead .what { color: var(--ink-2); font-weight: 500; }
+
+/* ---------- meters ---------- */
+
+.meters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: .75rem;
+}
+
+.meter {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: .9rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.meter .head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .75rem;
+}
+
+.meter .name {
+  font-size: .84rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.meter .val {
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -.02em;
+}
+
+.meter .val small {
+  font-size: .78rem;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.meter .val.bad {
+  color: var(--alert);
+  font-size: 1.05rem;
+}
+
+.bar {
+  height: .4rem;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+}
+
+.bar span.full    { background: var(--done); }
+.bar span.pending { background: var(--blaze); }
+.bar span.bad     { background: var(--alert); }
+
+.meter .note {
+  margin: 0;
+  font-size: .79rem;
+  color: var(--ink-2);
+  line-height: 1.5;
+}
+
+.meter .note strong { color: var(--ink); }
+
+/* ---------- rows -------------------------------------------------------
+   A row that needs attention gets a full alert border and an alert id, not
+   a coloured stripe on one edge. */
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+
+.row {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: .6rem .85rem .65rem;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: .25rem .8rem;
+  transition: border-color .12s ease-out;
+}
+
+.row:hover { border-color: var(--rule-strong); }
+
+.row .id {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.row .t {
+  font-size: .89rem;
+  font-weight: 500;
+  line-height: 1.35;
+  min-width: 0;
+}
+
+.row .d {
+  grid-column: 2 / -1;
+  font-size: .78rem;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+
+.row.hot {
+  border-color: var(--alert);
+}
+
+.row.hot:hover { border-color: var(--alert); }
+.row.hot .id { color: var(--alert); }
+
+.tag {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  padding: .2rem .4rem;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+
+.tag.green { color: var(--done); }
+.tag.warn  { color: var(--alert); }
+.tag.hitl  { color: var(--hitl); }
+.tag.grey  { color: var(--ink-3); }
+.tag.blaze { color: var(--blaze); }
+
+/* ---------- disclosure ---------- */
+
+details {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+}
+
+details > summary {
+  cursor: pointer;
+  padding: .65rem .85rem;
+  font-size: .82rem;
+  font-weight: 500;
+  color: var(--ink-2);
+  list-style: none;
+}
+
+details > summary:hover { color: var(--ink); }
+details > summary::-webkit-details-marker { display: none; }
+
+details > summary::before {
+  content: "+";
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  color: var(--ink-3);
+  margin-right: .5rem;
+}
+
+details[open] > summary::before { content: "−"; }
+
+details .inner {
+  padding: 0 .85rem .85rem;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+
+/* ---------- split columns ---------- */
+
+.split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: 1.1rem;
+}
+
+.split h4 {
+  margin: 0 0 .5rem;
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* ---------- workspace ---------- */
+
+.workspace-state {
+  margin: 0;
+  font-size: .87rem;
+  color: var(--ink-2);
+}
+
+.workspace-state strong { color: var(--alert); font-weight: 600; }
+
+.commits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .28rem;
+  font-size: .83rem;
+  color: var(--ink-2);
+}
+
+.commits li {
+  display: flex;
+  gap: .75rem;
+  align-items: baseline;
+}
+
+.commits .mono {
+  font-size: .75rem;
+  color: var(--ink-3);
+  flex: none;
+}
+
+/* ---------- footer ---------- */
+
+footer {
+  border-top: 1px solid var(--rule);
+  padding-top: .9rem;
+  font-size: .76rem;
+  color: var(--ink-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem 1.25rem;
+}
+
+/* ---------- narrow ---------- */
+
+@media (max-width: 34rem) {
+  .row,
+  .act {
+    grid-template-columns: auto 1fr;
+  }
+
+  .row .tag,
+  .act .cost {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .act .cost { order: 9; }
+
+  .commits li {
+    flex-direction: column;
+    gap: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
