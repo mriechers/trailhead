@@ -1,0 +1,5 @@
+interface:
+  display_name: "Trailhead"
+  short_description: "Render a where-are-we page"
+policy:
+  allow_implicit_invocation: false

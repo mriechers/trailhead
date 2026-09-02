@@ -1,6 +1,7 @@
 ---
 name: trailhead
-description: Use when you want a persistent "where are we" page for a long-running project — one screen answering what's next, where we left off, where we're going, and what this is, built from the repo's wayfinder map. Also use to refresh that page's judgment half after work lands. Triggers on "where are we", "where did I leave off", "build the trailhead", "refresh the trailhead", "what's the state of this project".
+description: Render a project's wayfinder map as a persistent "where are we" page — what's next, where you left off, where you're going, what this is — and refresh its authored half after work lands.
+disable-model-invocation: true
 ---
 
 A wayfinder map is a good record and a poor dashboard: to answer "where are we" you have to read an issue body, page through child issues, and hold the blocked/unblocked graph in your head. Trailhead renders that into one page you can open any time.
